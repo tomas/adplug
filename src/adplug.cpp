@@ -180,7 +180,7 @@ void CAdPlug::set_database(CAdPlugDatabase *db)
 
 std::string CAdPlug::get_version()
 {
-  return std::string(VERSION);
+  return std::string("2.2");
 }
 
 void CAdPlug::debug_output(const std::string &filename)

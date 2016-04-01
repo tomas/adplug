@@ -50,10 +50,10 @@ I'm not sure about a few things in my code:
 #include <math.h>
 #include <string.h>
 
-#if !defined(max) && !defined(__cplusplus)
+#if !defined(max) // && !defined(__cplusplus)
 #define max(a,b)  (((a) > (b)) ? (a) : (b))
 #endif
-#if !defined(min) && !defined(__cplusplus)
+#if !defined(min) // && !defined(__cplusplus)
 #define min(a,b)  (((a) < (b)) ? (a) : (b))
 #endif
 
