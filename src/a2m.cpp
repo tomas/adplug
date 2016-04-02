@@ -212,20 +212,24 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
   printf("tempo: %d\n", bpm);
   printf("init speed: %d\n", initspeed);
 
+  unsigned short pattern_len;
+  int ntracks;
+  unsigned short macro_speedup;
+
   if (version > 8) {
     int first, last;
     orgptr++; first = *orgptr;
     orgptr++; last  = *orgptr;
-    unsigned short pattern_len = (first << 8) | last;
-    printf("pattern length: %d\n", pattern_len);
+    pattern_len = (last << 8) | first;
+    printf("pattern length: %d (%d, %d)\n", pattern_len, first, last);
 
     orgptr++;
-    int ntracks = *orgptr;
+    ntracks = *orgptr;
     printf("number of tracks: %d\n", ntracks);
 
     orgptr++; first = *orgptr;
     orgptr++; last  = *orgptr;
-    unsigned short macro_speedup = (first << 8) | last;
+    macro_speedup = (last << 8) | first;
     printf("macro_speedup: %d\n", macro_speedup);
 
     if (version > 9) {
@@ -422,13 +426,15 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
       }
     }
   } else { // 9,10,11 -- [16][8][20][256][6]
-    realloc_patterns(16, 256, 20); // pats, rows, chans
+    realloc_patterns(16, pattern_len, ntracks); // pats, rows, chans
 
     for (i = 0; i < numpats; i++) {
-      for (j = 0; j < 20; j++) { // channel
-        for (k = 0; k < 256; k++) { // row
-          struct Tracks *track = &tracks[i * 20 + j][k];
-          unsigned char *o = &org[i * 256 * t * 6 + j * 256 * 6 + k * 6];
+      for (j = 0; j < ntracks; j++) { // channel
+        for (k = 0; k < pattern_len; k++) { // row
+          // struct Tracks *track = &tracks[i * 20 + j][k];
+          // unsigned char *o = &org[i * 256 * t * 6 + j * 256 * 6 + k * 6];
+          struct Tracks *track = &tracks[i * ntracks + j][k];
+          unsigned char *o = &org[i * pattern_len * t * 6 + j * pattern_len * 6 + k * 6];
 
           track->note = o[0] == 255 ? 127 : o[0];
           track->inst = o[1];
@@ -436,7 +442,7 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
           track->param1 = o[3] >> 4;
           track->param2 = o[3] & 0x0f;
 
-          // if (track->note > 0) printf("patt: %d, note: %d\n", i, track->note);
+          if (track->note > 0) printf("patt: %d, note: %d\n", i, track->note);
           // track->command2 = newconvfx[o[4]]
           // track->param3 = o[5] >> 4;
           // track->param4 = o[5] & 0x0f;
