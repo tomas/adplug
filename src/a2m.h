@@ -72,7 +72,7 @@ private:
   void decode();
   unsigned short sixdepak(unsigned short *source,unsigned char *dest,unsigned short size);
 
-  char songname[43], author[43], instname[250][33];
+  char songname[43], author[43], instname[255][33];
 
   unsigned short ibitcount, ibitbuffer, ibufcount, obufcount, input_size,
     output_size, leftc[ADPLUG_A2M_MAXCHAR+1], rghtc[ADPLUG_A2M_MAXCHAR+1],

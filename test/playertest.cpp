@@ -37,6 +37,7 @@
 
 // List of all filenames to test
 static const char *filelist[] = {
+  "MARIO.A2M",    // AdLib Tracker 2
   "SONG1.sng",		// Adlib Tracker
   "2001.MKJ",		// MK-Jamz
   "ADAGIO.DFM",		// Digital-FM
@@ -52,7 +53,6 @@ static const char *filelist[] = {
   "ice_thnk.sci",	// Sierra
   "inc.raw",		// RAW
   "loudness.lds",	// Loudness
-  "MARIO.A2M",		// AdLib Tracker 2
   "mi2.laa",		// LucasArts
   "michaeld.cmf",	// Creative Music Format
   "PLAYMUS1.SNG",	// SNGPlay
@@ -195,7 +195,9 @@ static bool testplayer(const std::string filename)
   }
 
   // Output file information
-  std::cout << "Testing format: " << p->gettype() << " - ";
+  std::cout << "Testing format: " << p->gettype() << " - \n";
+  std::cout << "Title:" << p->gettitle() << "\n";
+  std::cout << "Author:" << p->getauthor() << "\n";
 
   // Write whole file to disk
   while(p->update())
