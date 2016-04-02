@@ -103,18 +103,15 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
   if (version < 5) {
     maxpats = 4;
     for (i = 0; i < (maxpats+1); i++) len[i] = f->readInt(2);
-    t = 9;
   } else if (version < 9) {  
     maxpats = 8;
     for (i = 0; i < (maxpats+1); i++) len[i] = f->readInt(2);
-    t = 18;
   } else {
     maxpats = 16;
     for (i = 0; i < (maxpats+1); i++) { 
       len[i] = f->readInt(4);
       // printf("len: %d\n", len[i]);
     }
-    t = 68;
   }
 
   // block 0
@@ -343,6 +340,7 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
   }
 
   if (version < 5) {
+    int t = 9;
     for (i = 0; i < numpats; i++) {
       for (j = 0; j < 64; j++) {
         for (k = 0; k < 9; k++) {
@@ -391,6 +389,7 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
     }
 
   } else if (version < 9) { // 5-8
+    int t = 18;
     // realloc_patterns(64, 64, 18);
     realloc_patterns(16, 64, 18); // pats, rows, chans
 
@@ -426,6 +425,17 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
       }
     }
   } else { // 9,10,11 -- [16][8][20][256][6]
+
+    int t = 20;
+
+    // pattern_len = 256;
+    // ntracks = t;
+
+    int block_size = pattern_len * 6;
+    int offset;
+    int patt_offset;
+    int chan_offset;
+
     realloc_patterns(16, pattern_len, ntracks); // pats, rows, chans
 
     for (i = 0; i < numpats; i++) {
@@ -433,8 +443,13 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
         for (k = 0; k < pattern_len; k++) { // row
           // struct Tracks *track = &tracks[i * 20 + j][k];
           // unsigned char *o = &org[i * 256 * t * 6 + j * 256 * 6 + k * 6];
+
+          patt_offset = i * t * block_size; 
+          chan_offset = j * block_size;
+          offset = patt_offset + chan_offset + k * 6;
+
           struct Tracks *track = &tracks[i * ntracks + j][k];
-          unsigned char *o = &org[i * pattern_len * t * 6 + j * pattern_len * 6 + k * 6];
+          unsigned char *o = &org[offset];
 
           track->note = o[0] == 255 ? 127 : o[0];
           track->inst = o[1];
