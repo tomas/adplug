@@ -48,7 +48,7 @@ public:
 
 private:
   int version;
-  char songname[43], author[43], instname[255][33];
+  char songname[43], author[43], instname[255][43];
   // unsigned char *obuf, *buf;
 };
 

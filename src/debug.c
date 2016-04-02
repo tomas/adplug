@@ -21,6 +21,8 @@
  * Copyright (c) 2002 Simon Peter <dn.tlp@gmx.net>
  */
 
+// #define DEBUG 1
+
 #ifdef DEBUG
 
 #include <stdio.h>

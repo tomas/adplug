@@ -683,35 +683,33 @@ int a2m_read_patterns(char *src) {
   return 0;
 }
 
-typedef struct PACK {
-  // A2M_HEADER header;
+typedef struct {
   int version;
   int num_patterns;
   int tempo;
   int speed;
-  tFIXED_SONGDATA songdata;
-  tPATTERN_DATA pattdata[128];
 } songStruct;
 
 songStruct * a2m_import(char *bytes) {
   A2M_HEADER *header = (A2M_HEADER *)bytes;
   char *blockptr = bytes + sizeof(A2M_HEADER);
 
-  songStruct * song = (songStruct * )malloc(sizeof(songStruct));
-
   if (strncmp(header->id, "_A2module_", 10))
     return NULL; // false;
+
+  songStruct * song = (songStruct *)malloc(sizeof(songStruct));
 
   memset(songdata, 0, sizeof(_songdata));
   memset(pattdata, 0, sizeof(_pattdata));
   memset(len, 0, sizeof(len));
 
+  ffver = header->ffver;
   songdata->patt_len = 64;
   songdata->nm_tracks = 18;
   songdata->macro_speedup = 1;
 
-  // printf("A2M version: %d\n", header->ffver);
-  // printf("Number of patterns: %d\n", header->npatt);
+  printf("A2M version: %d\n", header->ffver);
+  printf("Number of patterns: %d\n", header->npatt);
 
   // Read variable part after header, fill len[] with values
   blockptr += a2m_read_varheader(blockptr);
@@ -719,15 +717,16 @@ songStruct * a2m_import(char *bytes) {
   // Read songdata
   blockptr += a2m_read_songdata(blockptr);
 
+  printf("Tempo: %d\n", songdata->tempo);
+  printf("Speed: %d\n", songdata->speed);
+
+  song->speed = songdata->speed;
+  // song->name  = songdata->songname;
+  // song->author = songdata->composer;
+
   // Read patterns
   a2m_read_patterns(blockptr);
 
-  song->version = ffver = header->ffver;
-  song->num_patterns = header->npatt;
-  song->tempo = songdata->tempo;
-  song->speed = songdata->speed;
-  // song->songdata = *songdata;
-  // song->patterndata = &patterndata;
-
   return song;
+  // return true;
 }
