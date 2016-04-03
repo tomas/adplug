@@ -1,8 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <sys/types.h>
-#include <string.h>
 
 #include "depack.h"
 #include "sixpack.h"
@@ -141,6 +138,7 @@ typedef struct PACK {
 
 // as C doesn't support pointers to typedef'ed arrays, make a struct
 // pattdata[1].ch[2].row[3].ev.note;
+
 typedef struct PACK {
   struct PACK {
     struct PACK {
@@ -148,14 +146,6 @@ typedef struct PACK {
     } row[256];
   } ch[20];
 } tPATTERN_DATA;
-
-// This would be later moved to class or struct
-tFIXED_SONGDATA _songdata, *songdata = &_songdata;
-tPATTERN_DATA _pattdata[128], *pattdata = _pattdata;
-
-/* LOADER FOR A2M/A2T */
-int ffver = 1;
-int len[21];
 
 typedef struct PACK {
   char id[15];  // '_a2tiny_module_'
@@ -246,18 +236,23 @@ typedef struct PACK {
   } ch[18];
 } tPATTERN_DATA_V5678;
 
-/*
-typedef struct PACK {
-  int version;
-  int length;
-  int num_patterns;
-  tFIXED_SONGDATA songdata;
-  tPATTERN_DATA patterdata;
-} AT2Song;
-*/
+
+
+//////////////
+
+// This would be later moved to class or struct
+tFIXED_SONGDATA _songdata, *songdata = &_songdata;
+tPATTERN_DATA _pattdata[128], *pattdata = _pattdata;
+
+/* LOADER FOR A2M/A2T */
+int ffver = 1;
+int len[21];
+
+/////////
 
 static inline void a2t_depack(void *src, int srcsize, void *dst)
 {
+  printf("ver: %d\n", ffver);
   switch (ffver) {
   case 1:
   case 5:   // sixpack
@@ -274,6 +269,7 @@ static inline void a2t_depack(void *src, int srcsize, void *dst)
     memcpy(dst, src, srcsize);
     break;
   case 9 ... 11:  // apack (aPlib)
+    printf("depacking\n");
     aP_depack(src, dst);
     break;
   }
@@ -380,74 +376,13 @@ int a2t_read_order(char *src)
   return len[i];
 }
 
-// common for both a2t/a2m
-static int a2_read_patterns(char *src, int s)
-{
-  switch (ffver) {
-  case 1 ... 4: // [4][16][64][9][4]
-    {
-    tPATTERN_DATA_V1234 *old =
-      (tPATTERN_DATA_V1234 *)malloc(sizeof(*old) * 16);
-
-    for (int i = 0; i < 4; i++) {
-      if (!len[i+s]) continue;
-
-      a2t_depack(src, len[i+s], old);
-
-      for (int p = 0; p < 16; p++) // pattern
-      for (int r = 0; r < 64; r++) // row
-      for (int c = 0; c < 9; c++) { // channel
-        memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev,
-          &old[p].row[r].ch[c].ev, 4);
-      }
-
-      src += len[i+s];
-    }
-
-    free(old);
-    break;
-    }
-  case 5 ... 8: // [8][8][18][64][4]
-    {
-    tPATTERN_DATA_V5678 *old =
-      (tPATTERN_DATA_V5678 *)malloc(sizeof(*old) * 8);
-
-    for (int i = 0; i < 8; i++) {
-      if (!len[i+s]) continue;
-
-      a2t_depack(src, len[i+s], old);
-
-      for (int p = 0; p < 8; p++) // pattern
-      for (int c = 0; c < 18; c++) // channel
-      for (int r = 0; r < 64; r++) { // row
-        memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev,
-          &old[p].ch[c].row[r].ev, 4);
-      }
-
-      src += len[i+s];
-    }
-
-    free(old);
-    break;
-    }
-  case 9 ... 11:  // [16][8][20][256][6]
-    for (int i = 0; i < 16; i++) {
-      if (!len[i+1]) continue;
-      a2t_depack(src, len[i+s], &pattdata[i]);
-      src += len[i+s];
-    }
-    break;
-  }
-
-  return 0;
-}
 
 int a2t_read_patterns(char *src)
 {
   int blockstart[11] = {2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 5};
   int s = blockstart[ffver - 1];
 
-  a2_read_patterns(src, s);
+  // a2_read_patterns(src, s);
   return 0;
 }
 
@@ -678,16 +613,14 @@ static int a2m_read_songdata(char *src)
   return len[0];
 }
 
-int a2m_read_patterns(char *src) {
-  a2_read_patterns(src, 1);
-  return 0;
-}
-
 typedef struct {
   int version;
   int num_patterns;
   int tempo;
   int speed;
+  int num_tracks;
+  int patt_length;
+  char * blockptr;
 } songStruct;
 
 songStruct * a2m_import(char *bytes) {
@@ -708,24 +641,26 @@ songStruct * a2m_import(char *bytes) {
   songdata->nm_tracks = 18;
   songdata->macro_speedup = 1;
 
-  printf("A2M version: %d\n", header->ffver);
-  printf("Number of patterns: %d\n", header->npatt);
-
   // Read variable part after header, fill len[] with values
   blockptr += a2m_read_varheader(blockptr);
 
   // Read songdata
   blockptr += a2m_read_songdata(blockptr);
 
-  printf("Tempo: %d\n", songdata->tempo);
-  printf("Speed: %d\n", songdata->speed);
+  // Read patterns
+  // a2m_read_patterns(blockptr);
 
+  song->version = header->ffver;
+  song->num_patterns = header->npatt;
+  song->num_tracks = songdata->nm_tracks;
+  song->patt_length = songdata->patt_len;
   song->speed = songdata->speed;
+  song->tempo = songdata->tempo;
+
+  song->blockptr = blockptr;
+
   // song->name  = songdata->songname;
   // song->author = songdata->composer;
-
-  // Read patterns
-  a2m_read_patterns(blockptr);
 
   return song;
   // return true;

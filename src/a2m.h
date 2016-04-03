@@ -50,6 +50,8 @@ private:
   int version;
   char songname[43], author[43], instname[255][43];
   // unsigned char *obuf, *buf;
+
+  int a2_read_patterns(int ver, char *src, int s);
 };
 
 #endif

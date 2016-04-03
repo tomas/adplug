@@ -65,8 +65,10 @@ bool CmodPlayer::update()
   unsigned short	track;
   unsigned long		row;
 
-  if(!speed)		// song full stop
+  if(!speed) {// song full stop
+    printf("no speed\n");
     return !songend;
+  }
 
   // effect handling (timer dependant)
   for(chan = 0; chan < nchans; chan++) {
@@ -190,7 +192,10 @@ bool CmodPlayer::update()
   }
 
   // arrangement handling
-  if(!resolve_order()) return !songend;
+  if(!resolve_order()) {
+    return !songend;
+  }
+
   pattnr = order[ord];
 
   if(!rw) AdPlug_LogWrite("\nCmodPlayer::update(): Pattern: %d, Order: %d\n", pattnr, ord);
