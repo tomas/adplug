@@ -70,8 +70,9 @@ int Ca2mLoader::a2_read_patterns(int ver, char *src, int s) {
       for (int p = 0; p < 16; p++) // pattern
       for (int r = 0; r < 64; r++) // row
       for (int c = 0; c < 9; c++) { // channel
-        memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev,
-          &old[p].row[r].ch[c].ev, 4);
+
+        // memcpy(&pattdata[i * 9 + p].ch[c].row[r].ev, &old[p].row[r].ch[c].ev, 4);
+        memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev, &old[p].row[r].ch[c].ev, 4);
 
         struct Tracks *track = &tracks[p * 9 + c][r];
         tADTRACK2_EVENT * ev = &pattdata[i * 16 + p].ch[c].row[r].ev;
@@ -109,6 +110,8 @@ int Ca2mLoader::a2_read_patterns(int ver, char *src, int s) {
           &old[p].ch[c].row[r].ev, 4);
 
         tADTRACK2_EVENT * ev = &pattdata[i * 16 + p].ch[c].row[r].ev;
+        if (ev->note > 0) printf("[%d/%d] p: %d, c: %d, r: %d, n: %d, inst: %d\n", i, p * 16 + c, p, c, r, ev->note, ev->instr_def);
+
         struct Tracks *track = &tracks[p * 16 + c][r];
         track->note    = ev->note;
         track->inst    = ev->instr_def;
@@ -125,20 +128,24 @@ int Ca2mLoader::a2_read_patterns(int ver, char *src, int s) {
     }
   case 9 ... 11:  // [16][8][20][256][6]
 
+    tPATTERN_DATA *old = (tPATTERN_DATA *)malloc(sizeof(*old) * 8);
     realloc_patterns(64, 64, 20); // pats, rows, chans
 
     for (int i = 0; i < 16; i++) {
       if (!len[i+1]) continue;
 
       // printf( " -- processing block: %d: %d\n", i, len[i+s]);
-      a2t_depack(src, len[i+s], &pattdata[i]);
+      a2t_depack(src, len[i+s], old);
 
       for (int p = 0; p < 8; p++) // pattern
       for (int c = 0; c < 20; c++) // channel
       for (int r = 0; r < 256; r++) { // row
-        
+
+       memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev,
+          &old[p].ch[c].row[r].ev, 6);
+
         tADTRACK2_EVENT * ev = &pattdata[i * 16 + p].ch[c].row[r].ev;
-        if (ev->note > 0) printf("[%d] p: %d, c: %d, r: %d, n: %d, inst: %d\n", i, p, c, r, ev->note, ev->instr_def);
+        if (ev->note > 0) printf("[%d/%d] p: %d, c: %d, r: %d, n: %d, inst: %d\n", i, p * 16 + c, p, c, r, ev->note, ev->instr_def);
 
         struct Tracks *track = &tracks[p * 16 + c][r];
         track->note    = ev->note;
@@ -151,6 +158,7 @@ int Ca2mLoader::a2_read_patterns(int ver, char *src, int s) {
       src += len[i+s];
     }
 
+    free(old);
     break;
   }
 
@@ -161,7 +169,7 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
 
   char * bytes = file_load(filename.c_str());
   if (bytes == NULL) {
-    printf("Error rexading %s\n", filename.c_str());
+    printf("Error reading %s\n", filename.c_str());
     return false;
   }
 
@@ -182,6 +190,10 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
   initspeed  = song->speed;
   flags      = songdata->common_flag;
   memcpy(order, &songdata->pattern_order, 128);
+
+  for (int i = 0; i < 128; i++) {
+    if (order[i] != 128) printf("%d -> %d\n", i, order[i]);
+  }
 
   int num_tracks  = song->num_tracks;
   int patt_length = song->patt_length;
@@ -309,6 +321,9 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
     }
   }
   */
+
+  // printf("note at track 1, row 0: %d, %d\n", tracks[1][0].note, tracks[1][0].inst);
+  // printf("note at track 80, row 0: %d, %d\n", tracks[80][0].note, tracks[80][0].inst);
 
   init_trackord();
 
