@@ -257,8 +257,8 @@ bool CmodPlayer::update() {
       track--;
     }
 
-    if (chan == 0) printf("\ntrack: %d, row: %ld", track, row);
-    if (tracks[track][row].note > 0 && false) {
+    // if (chan == 0) printf("\ntrack: %d, row: %ld", track, row);
+    if (tracks[track][row].note > 0) {
       AdPlug_LogWrite("%3d%3d%2X%2X%2X|", tracks[track][row].note,
                       tracks[track][row].inst, tracks[track][row].command,
                       tracks[track][row].param1, tracks[track][row].param2);
@@ -617,7 +617,7 @@ void CmodPlayer::init_trackord() {
 
   for (i = 0; i < npats * nchans; i++) {
     trackord[i / nchans][i % nchans] = i + 1;
-    printf("%ld, %ld --> %ld\n", i/nchans, i%nchans, i+1);
+    if (i % nchans == 0) printf("%ld, %ld --> %ld\n", i/nchans, i%nchans, i+1);
   }
 }
 

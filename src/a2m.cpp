@@ -56,35 +56,76 @@ char * file_load(const char *name) {
 }
 
 int Ca2mLoader::a2_read_patterns(int ver, char *src, int s) {
+
+  const unsigned char convfx[16]   = { 0, 1, 2, 23, 24, 3, 5, 4, 6, 9, 17, 13, 11, 19, 7, 14 };
+  const unsigned char convinf1[16] = { 0, 1, 2, 6, 7, 8, 9, 4, 5, 3, 10, 11, 12, 13, 14, 15 };
+  const unsigned char newconvfx[]  = { 0, 1, 2, 3, 4, 5, 6, 23, 24, 21, 10, 11, 17, 13, 7, 19,
+                                     255, 255, 22, 25, 255, 15, 255, 255, 255, 255, 255,
+                                     255, 255, 255, 255, 255, 255, 255, 255, 14, 255 };
+
+  int track_index;
+
   switch (ver) {
   case 1 ... 4: // [4][16][64][9][4]
     {
-    tPATTERN_DATA_V1234 *old =
-      (tPATTERN_DATA_V1234 *)malloc(sizeof(*old) * 16);
+    tPATTERN_DATA_V1234 *old = (tPATTERN_DATA_V1234 *)malloc(sizeof(*old) * 16);
 
     for (int i = 0; i < 4; i++) {
-      if (!len[i+s]) continue;
+      if (!at2_block_lengths[i+s]) continue;
 
-      a2t_depack(src, len[i+s], old);
+      a2t_depack(src, at2_block_lengths[i+s], old);
 
       for (int p = 0; p < 16; p++) // pattern
       for (int r = 0; r < 64; r++) // row
       for (int c = 0; c < 9; c++) { // channel
 
+        track_index = ((i * 16) + p) * 64 + c;
         // memcpy(&pattdata[i * 9 + p].ch[c].row[r].ev, &old[p].row[r].ch[c].ev, 4);
-        memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev, &old[p].row[r].ch[c].ev, 4);
+        // memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev, &old[p].row[r].ch[c].ev, 4);
+        tADTRACK2_EVENT_V1234 * ev = &old[p].row[r].ch[c].ev;
 
-        struct Tracks *track = &tracks[p * 9 + c][r];
-        tADTRACK2_EVENT * ev = &pattdata[i * 16 + p].ch[c].row[r].ev;
-
-        track->note = ev->note;
+        struct Tracks *track = &tracks[track_index][r];
+        track->note = ev->note == 255 ? 127 : ev->note;
         track->inst = ev->instr_def;
-        track->command = ev->effect_def;
-        track->param1 = ev->effect >> 4;
+        track->command = convfx[ev->effect_def];
+        // track->param1 = ev->effect >> 4;
         track->param2 = ev->effect & 0x0f;
+
+        if (track->command != 14) {
+          track->param1 = ev->effect >> 4;
+        } else {
+          track->param1 = convinf1[ev->effect >> 4];
+
+          if (track->param1 == 15 && !track->param2) { // convert key-off
+            track->command = 8;
+            track->param1 = 0;
+            track->param2 = 0;
+          }
+        }
+
+        if (track->command == 14) {
+          switch (track->param1) {
+          case 2: // convert define waveform
+            track->command = 25;
+            track->param1 = track->param2;
+            track->param2 = 0xf;
+            break;
+
+          case 8: // convert volume slide up
+            track->command = 26;
+            track->param1 = track->param2;
+            track->param2 = 0;
+            break;
+
+          case 9: // convert volume slide down
+            track->command = 26;
+            track->param1 = 0;
+            break;
+          }
+        }
       }
 
-      src += len[i+s];
+      src += at2_block_lengths[i+s];
     }
 
     free(old);
@@ -92,74 +133,112 @@ int Ca2mLoader::a2_read_patterns(int ver, char *src, int s) {
     }
   case 5 ... 8: // [8][8][18][64][4]
     {
-    
-    tPATTERN_DATA_V5678 *old =
-      (tPATTERN_DATA_V5678 *)malloc(sizeof(*old) * 8);
 
+    tPATTERN_DATA_V5678 *old = (tPATTERN_DATA_V5678 *)malloc(sizeof(*old) * 8);
     realloc_patterns(64, 64, 18); // pats, rows, chans
 
     for (int i = 0; i < 8; i++) {
-      if (!len[i+s]) continue;
+      if (!at2_block_lengths[i+s]) continue;
 
-      a2t_depack(src, len[i+s], old);
+      a2t_depack(src, at2_block_lengths[i+s], old);
 
       for (int p = 0; p < 8; p++) // pattern
       for (int c = 0; c < 18; c++) // channel
       for (int r = 0; r < 64; r++) { // row
-        memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev,
-          &old[p].ch[c].row[r].ev, 4);
 
-        tADTRACK2_EVENT * ev = &pattdata[i * 16 + p].ch[c].row[r].ev;
-        if (ev->note > 0) printf("[%d/%d] p: %d, c: %d, r: %d, n: %d, inst: %d\n", i, p * 16 + c, p, c, r, ev->note, ev->instr_def);
+        track_index = ((i * 8) + p) * 18 + c;
+        // memcpy(&pattdata[i * 18 + p].ch[c].row[r].ev, &old[p].ch[c].row[r].ev, 4);
+        // tADTRACK2_EVENT * ev = &pattdata[i * 18 + p].ch[c].row[r].ev;
 
-        struct Tracks *track = &tracks[p * 16 + c][r];
-        track->note    = ev->note;
+        tADTRACK2_EVENT_V1234 * ev = &old[p].ch[c].row[r].ev;
+        if (ev->note > 0) printf("[%d/%d] p: %d, c: %d, r: %d, n: %d, inst: %d\n", i, track_index, p, c, r, ev->note, ev->instr_def);
+
+        struct Tracks *track = &tracks[track_index][r];
+        track->note    = ev->note == 255 ? 127 : ev->note;
         track->inst    = ev->instr_def;
-        track->command = ev->effect_def;  // newconvfx[ev->effect_def];
+        track->command = newconvfx[ev->effect_def];
         track->param1  = ev->effect >> 4;
         track->param2  = ev->effect & 0x0f;
+
+        // Convert '&' command
+        if (ev->effect_def == 36) {
+          switch (track->param1) {
+            case 0: // pattern delay (frames)
+              track->command = 29;
+              track->param1 = 0;
+              // param2 already set correctly
+              break;
+
+            case 1: // pattern delay (rows)
+              track->command = 14;
+              track->param1 = 8;
+              // param2 already set correctly
+              break;
+          }
+        }
       }
 
-      src += len[i+s];
+      src += at2_block_lengths[i+s];
     }
 
     free(old);
     break;
     }
   case 9 ... 11:  // [16][8][20][256][6]
+    {
 
     tPATTERN_DATA *old = (tPATTERN_DATA *)malloc(sizeof(*old) * 8);
     realloc_patterns(64, 64, 20); // pats, rows, chans
 
     for (int i = 0; i < 16; i++) {
-      if (!len[i+1]) continue;
+      if (!at2_block_lengths[i+1]) continue;
 
-      // printf( " -- processing block: %d: %d\n", i, len[i+s]);
-      a2t_depack(src, len[i+s], old);
+      printf( " -- processing block: %d: %d\n", i, at2_block_lengths[i+s]);
+      a2t_depack(src, at2_block_lengths[i+s], old);
 
       for (int p = 0; p < 8; p++) // pattern
       for (int c = 0; c < 20; c++) // channel
       for (int r = 0; r < 256; r++) { // row
 
-       memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev,
-          &old[p].ch[c].row[r].ev, 6);
+        track_index = ((i * 16) + p) * 20 + c;
 
-        tADTRACK2_EVENT * ev = &pattdata[i * 16 + p].ch[c].row[r].ev;
-        if (ev->note > 0) printf("[%d/%d] p: %d, c: %d, r: %d, n: %d, inst: %d\n", i, p * 16 + c, p, c, r, ev->note, ev->instr_def);
+        // memcpy(&pattdata[i * 16 + p].ch[c].row[r].ev, &old[p].ch[c].row[r].ev, 6);
+        // tADTRACK2_EVENT * ev = &pattdata[i * 16 + p].ch[c].row[r].ev;
+        tADTRACK2_EVENT * ev = &old[p].ch[c].row[r].ev;
 
-        struct Tracks *track = &tracks[p * 16 + c][r];
-        track->note    = ev->note;
+        if (ev->note > 0) printf("[%d/%d] p: %d, c: %d, r: %d, n: %d, inst: %d\n", i, track_index, p, c, r, ev->note, ev->instr_def);
+
+        struct Tracks *track = &tracks[track_index][r];
+        track->note    = ev->note == 255 ? 127 : ev->note;
         track->inst    = ev->instr_def;
-        track->command = ev->effect_def;  // newconvfx[ev->effect_def];
+        track->command = newconvfx[ev->effect_def];
         track->param1  = ev->effect >> 4;
         track->param2  = ev->effect & 0x0f;
+
+        // Convert '&' command
+        if (ev->effect_def == 36) {
+          switch (track->param1) {
+            case 0: // pattern delay (frames)
+              track->command = 29;
+              track->param1 = 0;
+              // param2 already set correctly
+              break;
+
+            case 1: // pattern delay (rows)
+              track->command = 14;
+              track->param1 = 8;
+              // param2 already set correctly
+              break;
+          }
+        }
       }
 
-      src += len[i+s];
+      src += at2_block_lengths[i+s];
     }
 
     free(old);
     break;
+    }
   }
 
   return 0;
@@ -192,7 +271,7 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
   memcpy(order, &songdata->pattern_order, 128);
 
   for (int i = 0; i < 128; i++) {
-    if (order[i] != 128) printf("%d -> %d\n", i, order[i]);
+    if (order[i] != 128) printf(" + %d -> %d\n", i, order[i]);
   }
 
   int num_tracks  = song->num_tracks;
@@ -255,7 +334,7 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
 /*
   if (version < 5) { // [4][16][64][9][4]
     for (int i = 0; i < 4; i++) {
-      if (!len[i+1]) continue;
+      if (!at2_block_lengths[i+1]) continue;
 
       for (int p = 0; p < 16; p++) // pattern
       for (int r = 0; r < 64; r++) // row
@@ -275,7 +354,7 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
     realloc_patterns(16, 64, 18); // pats, rows, chans
 
     for (int i = 0; i < 8; i++) {
-      if (!len[i+1]) continue;
+      if (!at2_block_lengths[i+1]) continue;
 
       for (int p = 0; p < 8; p++) // pattern
       for (int c = 0; c < 18; c++) // channel
@@ -300,8 +379,8 @@ bool Ca2mLoader::load(const std::string &filename, const CFileProvider &fp) {
     realloc_patterns(128, 256, 20); // pats, rows, chans
 
     for (int i = 0; i < 16; i++) { 
-      if (!len[i+1]) continue;
-      printf( " -- processing block: %d: %d\n", i, len[i+1]);
+      if (!at2_block_lengths[i+1]) continue;
+      printf( " -- processing block: %d: %d\n", i, at2_block_lengths[i+1]);
 
       for (int p = 0; p < 8; p++) // pattern
       for (int c = 0; c < 20; c++) // channel
